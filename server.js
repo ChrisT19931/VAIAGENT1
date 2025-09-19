@@ -15,10 +15,10 @@ app.use(express.static('public'));
 // API Keys (to be set in Vercel environment variables)
 const API_KEYS = {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    CLEARBIT_API_KEY: process.env.CLEARBIT_API_KEY,
     HUNTER_API_KEY: process.env.HUNTER_API_KEY,
     NEWS_API_KEY: process.env.NEWS_API_KEY,
-    RAPIDAPI_KEY: process.env.RAPIDAPI_KEY, // For company data via RapidAPI
-    SERP_API_KEY: process.env.SERP_API_KEY  // Alternative for company search
+    APOLLO_API_KEY: process.env.APOLLO_API_KEY
 };
 
 // Main research endpoint
@@ -53,12 +53,126 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         apis_configured: {
             openai: !!API_KEYS.OPENAI_API_KEY,
+            clearbit: !!API_KEYS.CLEARBIT_API_KEY,
             hunter: !!API_KEYS.HUNTER_API_KEY,
             news: !!API_KEYS.NEWS_API_KEY,
-            rapidapi: !!API_KEYS.RAPIDAPI_KEY,
-            serpapi: !!API_KEYS.SERP_API_KEY
+            apollo: !!API_KEYS.APOLLO_API_KEY
         }
     });
+});
+
+// Authentication middleware
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ success: false, error: 'Access token required' });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ success: false, error: 'Invalid token' });
+        }
+        req.user = user;
+        next();
+    });
+};
+
+// Get user profile
+app.get('/api/user/profile', authenticateToken, async (req, res) => {
+    try {
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('id, name, email, role, subscription_status, created_at')
+            .eq('id', req.user.id)
+            .single();
+
+        if (error) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        res.json({ success: true, user });
+    } catch (error) {
+        console.error('Profile fetch error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// Admin middleware
+const requireAdmin = (req, res, next) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, error: 'Admin access required' });
+    }
+    next();
+};
+
+// Admin: Create user
+app.post('/api/admin/create-user', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { name, email, password, role = 'user', subscription_status = 'inactive' } = req.body;
+
+        if (!name || !email || !password) {
+            return res.status(400).json({ success: false, error: 'Name, email, and password are required' });
+        }
+
+        // Check if user already exists
+        const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .single();
+
+        if (existingUser) {
+            return res.status(400).json({ success: false, error: 'User with this email already exists' });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user
+        const { data: newUser, error } = await supabase
+            .from('users')
+            .insert({
+                name,
+                email,
+                password: hashedPassword,
+                role,
+                subscription_status
+            })
+            .select('id, name, email, role, subscription_status, created_at')
+            .single();
+
+        if (error) {
+            console.error('User creation error:', error);
+            return res.status(500).json({ success: false, error: 'Failed to create user' });
+        }
+
+        res.json({ success: true, user: newUser });
+    } catch (error) {
+        console.error('Admin create user error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// Admin: Get all users
+app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { data: users, error } = await supabase
+            .from('users')
+            .select('id, name, email, role, subscription_status, created_at')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Users fetch error:', error);
+            return res.status(500).json({ success: false, error: 'Failed to fetch users' });
+        }
+
+        res.json({ success: true, users });
+    } catch (error) {
+        console.error('Admin users error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
 });
 
 // Main research function
@@ -77,13 +191,13 @@ async function performClientResearch(clientName) {
     };
     
     try {
-        // 1. Get company information from RapidAPI or SerpAPI
-        const companyInfo = await getCompanyData(clientName);
+        // 1. Get company information from Clearbit
+        const companyInfo = await getClearbitData(clientName);
         if (companyInfo) {
-            result.industry = companyInfo.industry;
-            result.website = companyInfo.website;
-            result.location = companyInfo.location;
-            result.employees = companyInfo.employees;
+            result.industry = companyInfo.category?.industry;
+            result.website = companyInfo.domain;
+            result.location = companyInfo.geo?.city + ', ' + companyInfo.geo?.country;
+            result.employees = companyInfo.metrics?.employees;
             result.description = companyInfo.description;
         }
         
@@ -109,66 +223,27 @@ async function performClientResearch(clientName) {
     return result;
 }
 
-// Company data integration using multiple sources
-async function getCompanyData(companyName) {
-    // Try RapidAPI first (Company Data API)
-    if (API_KEYS.RAPIDAPI_KEY) {
-        try {
-            const response = await axios.get(`https://company-data-api.p.rapidapi.com/company`, {
-                params: { name: companyName },
-                headers: {
-                    'X-RapidAPI-Key': API_KEYS.RAPIDAPI_KEY,
-                    'X-RapidAPI-Host': 'company-data-api.p.rapidapi.com'
-                },
-                timeout: 10000
-            });
-            
-            const data = response.data;
-            return {
-                industry: data.industry,
-                website: data.website,
-                location: data.location,
-                employees: data.employee_count,
-                description: data.description
-            };
-        } catch (error) {
-            console.error('RapidAPI error:', error.message);
-        }
+// Clearbit API integration
+async function getClearbitData(companyName) {
+    if (!API_KEYS.CLEARBIT_API_KEY) {
+        console.log('Clearbit API key not configured, using mock data');
+        return getMockCompanyData(companyName);
     }
     
-    // Try SerpAPI as fallback
-    if (API_KEYS.SERP_API_KEY) {
-        try {
-            const response = await axios.get(`https://serpapi.com/search`, {
-                params: {
-                    engine: 'google',
-                    q: `${companyName} company information`,
-                    api_key: API_KEYS.SERP_API_KEY
-                },
-                timeout: 10000
-            });
-            
-            // Parse Google search results for company info
-            const organicResults = response.data.organic_results || [];
-            const firstResult = organicResults[0];
-            
-            if (firstResult) {
-                return {
-                    industry: 'Unknown',
-                    website: firstResult.link,
-                    location: 'Unknown',
-                    employees: 'Unknown',
-                    description: firstResult.snippet
-                };
-            }
-        } catch (error) {
-            console.error('SerpAPI error:', error.message);
-        }
+    try {
+        const response = await axios.get(`https://company.clearbit.com/v1/domains/find`, {
+            params: { name: companyName },
+            headers: {
+                'Authorization': `Bearer ${API_KEYS.CLEARBIT_API_KEY}`
+            },
+            timeout: 10000
+        });
+        
+        return response.data;
+    } catch (error) {
+        console.error('Clearbit API error:', error.message);
+        return getMockCompanyData(companyName);
     }
-    
-    // Fallback to mock data
-    console.log('No API keys configured, using mock data');
-    return getMockCompanyData(companyName);
 }
 
 // Hunter.io API integration
@@ -308,10 +383,10 @@ app.listen(PORT, () => {
     console.log(`📊 Dashboard: http://localhost:${PORT}`);
     console.log(`🔑 API Keys configured:`, {
         openai: !!API_KEYS.OPENAI_API_KEY,
+        clearbit: !!API_KEYS.CLEARBIT_API_KEY,
         hunter: !!API_KEYS.HUNTER_API_KEY,
         news: !!API_KEYS.NEWS_API_KEY,
-        rapidapi: !!API_KEYS.RAPIDAPI_KEY,
-        serpapi: !!API_KEYS.SERP_API_KEY
+        apollo: !!API_KEYS.APOLLO_API_KEY
     });
 });
 

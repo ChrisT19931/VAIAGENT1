@@ -48,12 +48,12 @@ Add these to your Vercel environment variables:
 
 ### Essential APIs:
 - `OPENAI_API_KEY` - Get from [OpenAI](https://platform.openai.com/api-keys)
-- `RAPIDAPI_KEY` - Get from [RapidAPI](https://rapidapi.com/) (search for "Company Data API")
+- `CLEARBIT_API_KEY` - Get from [Clearbit](https://clearbit.com/)
 - `HUNTER_API_KEY` - Get from [Hunter.io](https://hunter.io/api)
 - `NEWS_API_KEY` - Get from [NewsAPI](https://newsapi.org/)
 
 ### Optional APIs:
-- `SERP_API_KEY` - Get from [SerpAPI](https://serpapi.com/) (alternative company search)
+- `APOLLO_API_KEY` - Get from [Apollo.io](https://apolloio.com/)
 
 ## API Key Setup Guide
 
@@ -62,24 +62,18 @@ Add these to your Vercel environment variables:
 - Create new secret key
 - Copy and add to Vercel as `OPENAI_API_KEY`
 
-### 2. RapidAPI Key (Company data)
-- Sign up at https://rapidapi.com/
-- Search for "Company Data API" and subscribe
+### 2. Clearbit API Key (Company data)
+- Sign up at https://clearbit.com/
 - Get API key from dashboard
-- Add to Vercel as `RAPIDAPI_KEY`
+- Add to Vercel as `CLEARBIT_API_KEY`
 
-### 3. SerpAPI Key (Alternative company search)
-- Sign up at https://serpapi.com/
-- Get free API key (100 searches/month)
-- Add to Vercel as `SERP_API_KEY`
-
-### 4. Hunter.io API Key (Email finding)
+### 3. Hunter.io API Key (Email finding)
 - Sign up at https://hunter.io/
 - Go to API section
 - Copy API key
 - Add to Vercel as `HUNTER_API_KEY`
 
-### 5. News API Key (Recent news)
+### 4. News API Key (Recent news)
 - Sign up at https://newsapi.org/
 - Get free API key
 - Add to Vercel as `NEWS_API_KEY`
@@ -94,7 +88,7 @@ Add these to your Vercel environment variables:
 
 ## Data Sources
 
-- **Company Info:** RapidAPI + SerpAPI (Google search)
+- **Company Info:** Clearbit API
 - **Contact Data:** Hunter.io API
 - **Recent News:** NewsAPI
 - **AI Analysis:** OpenAI GPT-3.5
@@ -140,12 +134,11 @@ The app includes mock data for testing without API keys. Real APIs provide:
 
 **API Costs per 100 clients researched:**
 - OpenAI: ~$2-5
-- RapidAPI: ~$5-15 (depending on plan)
-- SerpAPI: ~$5-10 (100 free searches/month)
+- Clearbit: ~$20-50
 - Hunter.io: ~$10-20
 - NewsAPI: Free tier available
 
-**Total: ~$22-50 per 100 clients**
+**Total: ~$32-75 per 100 clients**
 
 ## Support
 
