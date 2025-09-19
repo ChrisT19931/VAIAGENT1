@@ -170,26 +170,44 @@ const requireAdmin = (req, res, next) => {
 // Admin: Create user
 app.post('/api/admin/create-user', authenticateToken, requireAdmin, async (req, res) => {
     try {
+        console.log('🔧 Creating user with data:', { ...req.body, password: '[HIDDEN]' });
+        
         const { name, email, password, role = 'user', subscription_status = 'inactive' } = req.body;
 
         if (!name || !email || !password) {
+            console.log('❌ Missing required fields');
             return res.status(400).json({ success: false, error: 'Name, email, and password are required' });
         }
 
+        // Check Supabase connection
+        if (!supabase) {
+            console.error('❌ Supabase client not initialized');
+            return res.status(500).json({ success: false, error: 'Database connection failed' });
+        }
+
+        console.log('🔍 Checking for existing user...');
         // Check if user already exists
-        const { data: existingUser } = await supabase
+        const { data: existingUser, error: checkError } = await supabase
             .from('users')
             .select('id')
             .eq('email', email)
             .single();
 
+        if (checkError && checkError.code !== 'PGRST116') {
+            console.error('❌ Error checking existing user:', checkError);
+            return res.status(500).json({ success: false, error: 'Database query failed', details: checkError.message });
+        }
+
         if (existingUser) {
+            console.log('❌ User already exists');
             return res.status(400).json({ success: false, error: 'User with this email already exists' });
         }
 
+        console.log('🔐 Hashing password...');
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        console.log('💾 Creating user in database...');
         // Create user
         const { data: newUser, error } = await supabase
             .from('users')
@@ -204,14 +222,24 @@ app.post('/api/admin/create-user', authenticateToken, requireAdmin, async (req, 
             .single();
 
         if (error) {
-            console.error('User creation error:', error);
-            return res.status(500).json({ success: false, error: 'Failed to create user' });
+            console.error('❌ User creation error:', error);
+            return res.status(500).json({ 
+                success: false, 
+                error: 'Failed to create user', 
+                details: error.message,
+                code: error.code 
+            });
         }
 
+        console.log('✅ User created successfully:', newUser.id);
         res.json({ success: true, user: newUser });
     } catch (error) {
-        console.error('Admin create user error:', error);
-        res.status(500).json({ success: false, error: 'Server error' });
+        console.error('❌ Admin create user error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Server error', 
+            details: error.message 
+        });
     }
 });
 
@@ -437,8 +465,84 @@ function getMockAnalysis(companyData) {
     return `${companyData.name} shows strong potential for B2B partnerships given their ${companyData.industry} focus and ${companyData.employees} employee base. Target C-level executives and department heads for decision-making. Approach with industry-specific solutions and emphasize ROI and efficiency gains.`;
 }
 
+// Test user creation endpoint (no auth required for testing)
+app.post('/api/test/create-user', async (req, res) => {
+    try {
+        console.log('🧪 TEST: Creating user with data:', { ...req.body, password: '[HIDDEN]' });
+        
+        const { name, email, password, role = 'user', subscription_status = 'inactive' } = req.body;
+
+        if (!name || !email || !password) {
+            console.log('❌ TEST: Missing required fields');
+            return res.status(400).json({ success: false, error: 'Name, email, and password are required' });
+        }
+
+        // Check Supabase connection
+        if (!supabase) {
+            console.error('❌ TEST: Supabase client not initialized');
+            return res.status(500).json({ success: false, error: 'Database connection failed' });
+        }
+
+        console.log('🔍 TEST: Checking for existing user...');
+        // Check if user already exists
+        const { data: existingUser, error: checkError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .single();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+            console.error('❌ TEST: Error checking existing user:', checkError);
+            return res.status(500).json({ success: false, error: 'Database query failed', details: checkError.message });
+        }
+
+        if (existingUser) {
+            console.log('❌ TEST: User already exists');
+            return res.status(400).json({ success: false, error: 'User with this email already exists' });
+        }
+
+        console.log('🔐 TEST: Hashing password...');
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        console.log('💾 TEST: Creating user in database...');
+        // Create user
+        const { data: newUser, error } = await supabase
+            .from('users')
+            .insert({
+                name,
+                email,
+                password: hashedPassword,
+                role,
+                subscription_status
+            })
+            .select('id, name, email, role, subscription_status, created_at')
+            .single();
+
+        if (error) {
+            console.error('❌ TEST: User creation error:', error);
+            return res.status(500).json({ 
+                success: false, 
+                error: 'Failed to create user', 
+                details: error.message,
+                code: error.code 
+            });
+        }
+
+        console.log('✅ TEST: User created successfully:', newUser.id);
+        res.json({ success: true, user: newUser });
+    } catch (error) {
+        console.error('❌ TEST: Create user error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Server error', 
+            details: error.message 
+        });
+    }
+});
+
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`🚀 Client Research Agent running on port ${PORT}`);
     console.log(`📊 Dashboard: http://localhost:${PORT}`);
     console.log(`🔑 API Keys configured:`, {
@@ -448,6 +552,24 @@ app.listen(PORT, () => {
         news: !!API_KEYS.NEWS_API_KEY,
         apollo: !!API_KEYS.APOLLO_API_KEY
     });
+    
+    // Test Supabase connection
+    console.log('🔗 Testing Supabase connection...');
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+        console.error('❌ CRITICAL: Supabase environment variables missing!');
+        console.error('   Please set SUPABASE_URL and SUPABASE_SERVICE_KEY in your .env file');
+    } else {
+        try {
+            const { data, error } = await supabase.from('users').select('count').limit(1);
+            if (error) {
+                console.error('❌ Supabase connection failed:', error.message);
+            } else {
+                console.log('✅ Supabase connection successful');
+            }
+        } catch (err) {
+            console.error('❌ Supabase connection error:', err.message);
+        }
+    }
 });
 
 module.exports = app;

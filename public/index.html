@@ -567,7 +567,87 @@
                 element.innerHTML = '';
             }, 5000);
         }
+        // Test User Creation Function (No Auth Required)
+        async function testCreateUser() {
+            const name = document.getElementById('testUserName').value;
+            const email = document.getElementById('testUserEmail').value;
+            const password = document.getElementById('testUserPassword').value;
+            
+            if (!name || !email || !password) {
+                showTestResult('Please fill in all fields', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/test/create-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name,
+                        email,
+                        password,
+                        role: 'user',
+                        subscription_status: 'active'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showTestResult(`✅ User created successfully! ID: ${data.user_id}`, 'success');
+                    // Clear form
+                    document.getElementById('testUserName').value = '';
+                    document.getElementById('testUserEmail').value = '';
+                    document.getElementById('testUserPassword').value = '';
+                } else {
+                    showTestResult(`❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showTestResult(`❌ Network Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function showTestResult(message, type) {
+            const resultDiv = document.getElementById('testResult');
+            resultDiv.style.display = 'block';
+            resultDiv.style.background = type === 'success' ? '#d4edda' : '#f8d7da';
+            resultDiv.style.color = type === 'success' ? '#155724' : '#721c24';
+            resultDiv.style.border = type === 'success' ? '1px solid #c3e6cb' : '1px solid #f5c6cb';
+            resultDiv.innerHTML = message;
+            
+            setTimeout(() => {
+                resultDiv.style.display = 'none';
+            }, 5000);
+        }
     </script>
+    
+    <!-- Test User Creation Panel -->
+    <div class="container" style="margin-top: 20px; background: rgba(255, 107, 107, 0.1); border: 2px solid #ff6b6b;">
+        <div class="card">
+            <h3 style="color: #ff6b6b;">🧪 Test User Creation (Debug Mode)</h3>
+            <p style="color: #a0a0a0; font-size: 14px; margin-bottom: 20px;">This endpoint bypasses authentication for testing Supabase connection.</p>
+            <div class="test-form">
+                <input type="text" id="testUserName" placeholder="Full Name" required>
+                <input type="email" id="testUserEmail" placeholder="Email" required>
+                <input type="password" id="testUserPassword" placeholder="Password" required>
+                <button onclick="testCreateUser()" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);">Test Create User</button>
+            </div>
+            <div id="testResult" style="margin-top: 15px; padding: 12px; border-radius: 8px; display: none;"></div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border-left: 4px solid #ffd93d;">
+                <h4 style="color: #ffd93d; margin-bottom: 10px;">⚠️ Supabase Setup Instructions</h4>
+                <p style="color: #a0a0a0; font-size: 13px; line-height: 1.5;">
+                    If you see connection errors, update your environment variables:<br>
+                    • SUPABASE_URL: Your project URL from Supabase dashboard<br>
+                    • SUPABASE_ANON_KEY: Your anon/public key from Supabase dashboard<br>
+                    • Restart the server after updating .env file
+                </p>
+            </div>
+        </div>
+    </div>
+    
     <!-- Footer -->
     <div class="footer">
         <div class="footer-content">
