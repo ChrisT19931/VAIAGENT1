@@ -1,145 +1,230 @@
-# Client Research Agent
+# VAI Client Research Agent
 
-AI-powered client research automation tool with secure admin access.
+A powerful AI-driven client research automation tool with user management, subscription handling, and comprehensive admin panel.
 
-## Features
+## 🚀 Features
 
-- 🔐 **Secure Login** - Admin-only access with hardcoded credentials
-- 🔍 **Bulk Research** - Research multiple clients at once
-- 🤖 **AI Analysis** - GPT-powered insights and recommendations
-- 📊 **Comprehensive Data** - Company info, contacts, news, and analysis
-- 🚀 **One-Click Deploy** - Ready for Vercel deployment
+- **AI-Powered Research**: Automated client research using multiple APIs
+- **User Management**: Complete user authentication and role-based access control
+- **Admin Panel**: Create and manage users with different roles
+- **Subscription System**: Stripe integration for payment processing
+- **Secure Authentication**: JWT-based authentication with bcrypt password hashing
+- **Database Storage**: Supabase integration for reliable data storage
+- **Modern UI**: Elite dark theme with responsive design
 
-## Quick Start
+## 📋 Prerequisites
 
-### 1. Install Dependencies
-```bash
-npm install
+- Node.js 18+ 
+- Supabase account
+- Stripe account (for payments)
+- API keys for research services (OpenAI, Clearbit, Hunter.io, etc.)
+
+## 🛠️ Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd vai-client-research-agent
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   ```
+   Fill in your actual API keys and configuration values.
+
+4. **Set up Supabase database**
+   Follow the detailed guide in `SUPABASE_SETUP.md`
+
+5. **Start the application**
+   ```bash
+   npm start
+   ```
+
+## 🗄️ Database Schema & User Storage
+
+### How User Creation is Stored
+
+The application uses **Supabase** as the primary database to store all user data securely:
+
+#### Users Table Schema
+```sql
+CREATE TABLE users (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(50) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    subscription_status VARCHAR(50) DEFAULT 'inactive',
+    stripe_customer_id VARCHAR(255),
+    stripe_subscription_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 ```
 
-### 2. Run Locally
-```bash
-npm start
+#### User Creation Process
+
+1. **Admin Authentication**: Admin logs in via `/api/auth/login`
+2. **User Creation Request**: Admin submits user data via admin panel
+3. **Server Processing**:
+   - Validates input data (name, email, password)
+   - Checks for duplicate emails
+   - Hashes password using bcrypt (10 salt rounds)
+   - Inserts user data into Supabase `users` table
+4. **Database Storage**: User data is permanently stored in Supabase
+5. **Response**: Server returns created user data (without password)
+
+#### Data Security
+- **Password Hashing**: All passwords are hashed with bcrypt before storage
+- **Row Level Security**: Supabase RLS policies protect user data
+- **JWT Authentication**: Secure token-based authentication
+- **Input Validation**: Server validates all user inputs
+
+## 🔐 Authentication System
+
+### Login Flow
+1. User submits credentials to `/api/auth/login`
+2. Server verifies email exists in database
+3. Password is compared using bcrypt
+4. JWT token generated with user ID, email, and role
+5. Token returned to client for subsequent requests
+
+### Protected Routes
+- All admin endpoints require valid JWT token
+- Admin role required for user management functions
+- Tokens expire after 24 hours for security
+
+## 🎛️ Admin Panel Features
+
+### User Management
+- **Create Users**: Add new users with email, name, password, and role
+- **View Users**: Display all users with their details and creation dates
+- **Role Assignment**: Assign 'user' or 'admin' roles
+- **Subscription Tracking**: Monitor subscription status for billing
+
+### Security Features
+- Role-based access control
+- JWT authentication middleware
+- Password strength requirements
+- Input sanitization and validation
+
+## 🔧 API Endpoints
+
+### Authentication
+- `POST /api/auth/login` - User login with email/password
+- `GET /api/user/profile` - Get authenticated user profile
+
+### Admin Endpoints (Requires Admin Role)
+- `POST /api/admin/create-user` - Create new user
+- `GET /api/admin/users` - Get all users list
+
+### Research
+- `POST /api/research` - Perform client research
+- `GET /api/health` - Health check and API status
+
+## 🌐 Environment Configuration
+
+### Essential Variables (Required)
+```env
+# Supabase Database
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_KEY=your-service-key
+
+# Authentication
+JWT_SECRET=your-secure-jwt-secret
+
+# Stripe Payments
+STRIPE_SECRET_KEY=sk_test_your-stripe-secret
+STRIPE_PUBLISHABLE_KEY=pk_test_your-stripe-publishable
+STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
+STRIPE_PRICE_ID=price_your-subscription-price-id
 ```
 
-Visit `http://localhost:3000` and login with:
-- **Email:** chris.t@ventarosales.com
-- **Password:** Rabbit5511$$11
-
-### 3. Deploy to Vercel
-
-1. Install Vercel CLI:
-```bash
-npm i -g vercel
+### Research API Keys (Optional)
+```env
+OPENAI_API_KEY=sk-your-openai-key
+CLEARBIT_API_KEY=your-clearbit-key
+HUNTER_API_KEY=your-hunter-key
+NEWS_API_KEY=your-news-api-key
+APOLLO_API_KEY=your-apollo-key
 ```
 
-2. Deploy:
-```bash
-vercel
+## 🚀 Deployment
+
+### Vercel Deployment
+1. Connect repository to Vercel
+2. Set all environment variables in Vercel dashboard
+3. Deploy automatically on push to main branch
+4. Configure custom domain if needed
+
+### Production Checklist
+- [ ] All environment variables configured
+- [ ] Supabase database schema created
+- [ ] Admin user created in database
+- [ ] Stripe webhooks configured
+- [ ] SSL certificate enabled
+- [ ] Domain configured for production
+
+## 🔒 Security Best Practices
+
+1. **Password Security**
+   - bcrypt hashing with 10 salt rounds
+   - No plain text password storage
+   - Strong password requirements enforced
+
+2. **Database Security**
+   - Row Level Security (RLS) enabled
+   - Service key used only on server
+   - Input validation and sanitization
+
+3. **Authentication Security**
+   - JWT tokens with 24-hour expiration
+   - Secure, random JWT secret
+   - Role-based access control
+
+## 🐛 Troubleshooting
+
+### Database Issues
+- **"User creation failed"**: Check Supabase connection and table schema
+- **"Invalid credentials"**: Verify user exists and password is correct
+- **"Permission denied"**: Check RLS policies and API key permissions
+
+### Authentication Issues
+- **"JWT must be provided"**: Ensure JWT_SECRET is set in environment
+- **"Invalid token"**: Check token format and expiration
+- **"Admin access required"**: Verify user has admin role
+
+### Setup Issues
+- **"Supabase not configured"**: Check SUPABASE_URL and keys
+- **"Dependencies missing"**: Run `npm install` to install packages
+- **"Port already in use"**: Change PORT in .env or stop other services
+
+## 📊 User Data Flow
+
+```
+Admin Login → JWT Token → Admin Panel → Create User → 
+Validate Data → Hash Password → Store in Supabase → 
+Return Success → Update UI → User Available for Login
 ```
 
-3. Add environment variables in Vercel dashboard:
-   - Go to your project settings
-   - Add the API keys listed below
+## 📞 Support
 
-## Required API Keys
+For technical support:
+- **Email**: chris.t@ventarosales.com
+- **Documentation**: See `SUPABASE_SETUP.md` for database setup
+- **Issues**: Check troubleshooting section above
 
-Add these to your Vercel environment variables:
+## 📄 License
 
-### Essential APIs:
-- `OPENAI_API_KEY` - Get from [OpenAI](https://platform.openai.com/api-keys)
-- `CLEARBIT_API_KEY` - Get from [Clearbit](https://clearbit.com/)
-- `HUNTER_API_KEY` - Get from [Hunter.io](https://hunter.io/api)
-- `NEWS_API_KEY` - Get from [NewsAPI](https://newsapi.org/)
+MIT License - see LICENSE file for details.
 
-### Optional APIs:
-- `APOLLO_API_KEY` - Get from [Apollo.io](https://apolloio.com/)
+---
 
-## API Key Setup Guide
-
-### 1. OpenAI API Key (Required for AI analysis)
-- Go to https://platform.openai.com/api-keys
-- Create new secret key
-- Copy and add to Vercel as `OPENAI_API_KEY`
-
-### 2. Clearbit API Key (Company data)
-- Sign up at https://clearbit.com/
-- Get API key from dashboard
-- Add to Vercel as `CLEARBIT_API_KEY`
-
-### 3. Hunter.io API Key (Email finding)
-- Sign up at https://hunter.io/
-- Go to API section
-- Copy API key
-- Add to Vercel as `HUNTER_API_KEY`
-
-### 4. News API Key (Recent news)
-- Sign up at https://newsapi.org/
-- Get free API key
-- Add to Vercel as `NEWS_API_KEY`
-
-## How It Works
-
-1. **Login** - Secure admin authentication
-2. **Input** - Enter client names (one per line)
-3. **Research** - Automated data gathering from multiple sources
-4. **Analysis** - AI-powered insights and recommendations
-5. **Results** - Comprehensive client profiles
-
-## Data Sources
-
-- **Company Info:** Clearbit API
-- **Contact Data:** Hunter.io API
-- **Recent News:** NewsAPI
-- **AI Analysis:** OpenAI GPT-3.5
-
-## Mock Data
-
-The app includes mock data for testing without API keys. Real APIs provide:
-- More accurate company information
-- Live contact data
-- Recent news and updates
-- Personalized AI analysis
-
-## Security
-
-- Admin-only access with hardcoded credentials
-- Session-based authentication
-- No data storage (research happens in real-time)
-- Environment variables for API keys
-
-## Deployment Steps for Vercel
-
-1. **Push to GitHub** (optional but recommended)
-2. **Connect to Vercel:**
-   - Go to vercel.com
-   - Import your project
-   - Deploy
-
-3. **Add Environment Variables:**
-   - Project Settings → Environment Variables
-   - Add all API keys from the list above
-
-4. **Redeploy** after adding environment variables
-
-## Usage
-
-1. Login with admin credentials
-2. Enter client names (e.g., "Apple Inc", "Microsoft Corporation")
-3. Click "Start Research"
-4. Wait for results (1-2 minutes per client)
-5. Review comprehensive client profiles
-
-## Pricing Estimates
-
-**API Costs per 100 clients researched:**
-- OpenAI: ~$2-5
-- Clearbit: ~$20-50
-- Hunter.io: ~$10-20
-- NewsAPI: Free tier available
-
-**Total: ~$32-75 per 100 clients**
-
-## Support
-
-For issues or questions, contact: chris.t@ventarosales.com
+**Built with ❤️ by VentaroAI** | Secure • Scalable • User-Friendly

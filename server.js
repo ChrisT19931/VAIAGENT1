@@ -2,7 +2,17 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 require('dotenv').config();
+
+// Initialize Supabase
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -78,6 +88,56 @@ const authenticateToken = (req, res, next) => {
         next();
     });
 };
+
+// Login endpoint
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ success: false, error: 'Email and password are required' });
+        }
+
+        // Find user by email
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('id, name, email, password, role, subscription_status')
+            .eq('email', email)
+            .single();
+
+        if (error || !user) {
+            return res.status(401).json({ success: false, error: 'Invalid credentials' });
+        }
+
+        // Verify password
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) {
+            return res.status(401).json({ success: false, error: 'Invalid credentials' });
+        }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                id: user.id, 
+                email: user.email, 
+                role: user.role 
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Return user data (without password) and token
+        const { password: _, ...userWithoutPassword } = user;
+        res.json({ 
+            success: true, 
+            token, 
+            user: userWithoutPassword 
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
 
 // Get user profile
 app.get('/api/user/profile', authenticateToken, async (req, res) => {
