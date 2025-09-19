@@ -1,0 +1,29 @@
+{
+  "name": "client-research-agent",
+  "version": "1.0.0",
+  "description": "AI-powered client research automation tool",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "echo 'No build step required'"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "client-research",
+    "ai",
+    "automation",
+    "b2b",
+    "lead-generation"
+  ],
+  "author": "Ventaro Sales",
+  "license": "MIT"
+}

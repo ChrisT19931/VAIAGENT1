@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Research Agent</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 50px auto; padding: 20px; }
+        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
+        input, textarea, button { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; cursor: pointer; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        .logout { width: auto; float: right; background: #dc3545; }
+        .logout:hover { background: #c82333; }
+        .results { margin-top: 20px; }
+        .client-result { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 4px; border-left: 4px solid #007bff; }
+        .loading { text-align: center; color: #666; }
+        .error { color: #dc3545; background: #f8d7da; padding: 10px; border-radius: 4px; }
+        .success { color: #155724; background: #d4edda; padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <!-- Login Form -->
+    <div id="loginForm" class="container">
+        <div class="card">
+            <h2>Client Research Agent - Admin Login</h2>
+            <form onsubmit="login(event)">
+                <input type="email" id="email" placeholder="Email" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+            </form>
+            <div id="loginError" class="error hidden">Invalid credentials</div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="mainApp" class="container hidden">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>Client Research Agent</h2>
+                <button class="logout" onclick="logout()">Logout</button>
+            </div>
+            
+            <form onsubmit="startResearch(event)">
+                <label>Enter client names or companies (one per line):</label>
+                <textarea id="clientList" rows="6" placeholder="Apple Inc\nMicrosoft Corporation\nGoogle LLC\nAmazon.com Inc\nTesla Inc" required></textarea>
+                <button type="submit" id="researchBtn">Start Research</button>
+            </form>
+
+            <div id="loadingDiv" class="loading hidden">
+                <p>🔍 Researching clients... This may take a few minutes.</p>
+                <div id="progressText">Starting research...</div>
+            </div>
+
+            <div id="results" class="results"></div>
+        </div>
+    </div>
+
+    <script>
+        // Authentication
+        const ADMIN_EMAIL = 'chris.t@ventarosales.com';
+        const ADMIN_PASSWORD = 'Rabbit5511$$11';
+        
+        function login(event) {
+            event.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+                document.getElementById('loginForm').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('hidden');
+                document.getElementById('loginError').classList.add('hidden');
+                sessionStorage.setItem('authenticated', 'true');
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+        
+        function logout() {
+            sessionStorage.removeItem('authenticated');
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+        }
+        
+        // Check if already authenticated
+        if (sessionStorage.getItem('authenticated') === 'true') {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+        }
+        
+        // Research functionality
+        async function startResearch(event) {
+            event.preventDefault();
+            
+            const clientList = document.getElementById('clientList').value.trim();
+            if (!clientList) return;
+            
+            const clients = clientList.split('\n').filter(c => c.trim());
+            
+            document.getElementById('researchBtn').disabled = true;
+            document.getElementById('loadingDiv').classList.remove('hidden');
+            document.getElementById('results').innerHTML = '';
+            
+            try {
+                const results = await researchClients(clients);
+                displayResults(results);
+            } catch (error) {
+                document.getElementById('results').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                document.getElementById('researchBtn').disabled = false;
+                document.getElementById('loadingDiv').classList.add('hidden');
+            }
+        }
+        
+        async function researchClients(clients) {
+            const results = [];
+            
+            for (let i = 0; i < clients.length; i++) {
+                const client = clients[i].trim();
+                document.getElementById('progressText').textContent = `Researching ${client} (${i + 1}/${clients.length})...`;
+                
+                try {
+                    const result = await researchSingleClient(client);
+                    results.push(result);
+                    
+                    // Add small delay to avoid rate limiting
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                } catch (error) {
+                    results.push({
+                        name: client,
+                        error: error.message,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            }
+            
+            return results;
+        }
+        
+        async function researchSingleClient(clientName) {
+            // This will call our backend API
+            const response = await fetch('/api/research', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ clientName })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return await response.json();
+        }
+        
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('results');
+            
+            if (results.length === 0) {
+                resultsDiv.innerHTML = '<div class="error">No results found</div>';
+                return;
+            }
+            
+            let html = '<h3>Research Results:</h3>';
+            
+            results.forEach(result => {
+                if (result.error) {
+                    html += `
+                        <div class="client-result">
+                            <h4>❌ ${result.name}</h4>
+                            <p class="error">Error: ${result.error}</p>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="client-result">
+                            <h4>✅ ${result.name}</h4>
+                            <p><strong>Industry:</strong> ${result.industry || 'Unknown'}</p>
+                            <p><strong>Website:</strong> ${result.website || 'Not found'}</p>
+                            <p><strong>Location:</strong> ${result.location || 'Unknown'}</p>
+                            <p><strong>Employee Count:</strong> ${result.employees || 'Unknown'}</p>
+                            <p><strong>Description:</strong> ${result.description || 'No description available'}</p>
+                            <p><strong>Key Contacts:</strong> ${result.contacts || 'None found'}</p>
+                            <p><strong>Recent News:</strong> ${result.news || 'No recent news'}</p>
+                            <p><strong>AI Analysis:</strong> ${result.analysis || 'Analysis not available'}</p>
+                            <small>Researched: ${new Date(result.timestamp).toLocaleString()}</small>
+                        </div>
+                    `;
+                }
+            });
+            
+            resultsDiv.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
